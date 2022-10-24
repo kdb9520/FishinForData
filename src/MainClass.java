@@ -1,5 +1,7 @@
 import java.util.*;
 
+import com.jcraft.jsch.Session;
+
 public class MainClass {
     public static Scanner in;
     public static String username;
@@ -39,13 +41,17 @@ public class MainClass {
 
     public static void main(String[] args) {
         in = new Scanner(System.in);
+
+        //setup SSH port to connect to database and listen on localhost:8080
+        Session session = Helpers.createSession();
+
         handleLogin();
         if (username == null) {
             System.out.println("Goodbye...");
             return;
         }
         int option;
-        while ((option = mainMenuOption()) != 0) {
+        while ((option = mainMenuOption()) != 0 && session!=null && session.isConnected()) {
             System.out.println(option);
             switch (option) {
                 case 1: {
@@ -62,6 +68,21 @@ public class MainClass {
                 }
             }
         }
+        
+
+        //delPortForwardingL throws errors so..wrapped in try-catch
+        try{
+            //localhost port assumed to be 8080, if changed, edit Helpers.java 
+            session.delPortForwardingL(8080);
+        } 
+        catch(Exception e){
+            System.out.println("Error with deleting PortFowarding, session closing anyway");
+        }
+        finally{
+            System.out.println("Closing Session...");
+            session.disconnect();
+        }
+
         System.out.println("Goodbye...");
         in.close();
     }

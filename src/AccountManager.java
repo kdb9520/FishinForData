@@ -1,4 +1,8 @@
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.time.*;
+
 
 public class AccountManager {
     public static ZonedDateTime lastAccessTimestamp;
@@ -10,6 +14,63 @@ public class AccountManager {
 
     public static String create() {
         System.out.println("create called");
+
+        Connection conn = Helpers.createConnection();
+        if(conn==null){
+            return "Something went wrong establishing connection to database! Check Helpers.java";
+        }
+
+        try{
+            
+            //TODO super barebones with no input handling
+            System.out.println("Please enter a unique username:");
+            String new_username = MainClass.in.nextLine();
+            //TODO add sha-256 hashing for password
+            System.out.println("Please enter a password:");
+            String new_password = MainClass.in.nextLine();
+
+            System.out.println("Please enter your email:");
+            String new_email = MainClass.in.nextLine();
+            System.out.println("Please enter your first name:");
+            String new_firstName = MainClass.in.nextLine();
+            System.out.println("Please enter your last name:");
+            String new_lastName = MainClass.in.nextLine();
+
+            Statement st = conn.createStatement();
+            String sql_base="INSERT INTO user_account(username, password, email, first_name, last_name, creation_timestamp, last_access_timestamp) VALUES(\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', NOW(), NOW());";
+            
+            String sql = String.format(sql_base, new_username, new_password, new_email, new_firstName, new_lastName);
+            //System.out.println(sql);
+            int result =0;
+            //result = st.executeQuery(sql);
+
+            //for debug
+            try{
+                result = st.executeUpdate(sql);
+            }
+            catch(Exception e){
+                System.out.println(e);
+            }
+
+            if(result==1){
+                System.out.println("Creation success");
+            }
+            else{
+                System.out.println("Failed to create new user account");
+            }
+
+            //Update lastAccessTimestamp
+            lastAccessTimestamp = ZonedDateTime.now();
+            
+        }catch(Exception e){}
+        finally{
+            try{ //idk why these throw errors, intended for create() to throw the exception
+                conn.rollback();
+                conn.close();}
+            catch(Exception e){}
+        }
+        
+
         return "(from create)";
     }
 
