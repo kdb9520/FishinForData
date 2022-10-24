@@ -1,10 +1,11 @@
-import java.util.*;
-
 import com.jcraft.jsch.Session;
+
+import java.util.*;
 
 public class MainClass {
     public static Scanner in;
     public static String username;
+    private static Session session;
 
     private static void handleLogin() {
         System.out.print("\r\nCurrent menu: NOT LOGGED IN\r\n\r\n" +
@@ -28,6 +29,21 @@ public class MainClass {
         }
     }
 
+    private static void closeResources() {
+        //delPortForwardingL throws errors so wrapped in try-catch
+        try {
+            session.delPortForwardingL(Helpers.localPort);
+        }
+        catch (Exception e) {
+            System.out.println("Error with deleting PortForwarding, session closing anyway");
+        }
+        finally {
+            System.out.println("Closing Session...");
+            session.disconnect();
+            in.close();
+        }
+    }
+
     private static int mainMenuOption() {
         System.out.print("\r\nCurrent menu: MAIN MENU\r\n" +
                 "You're signed in as \"" + username + "\"\r\n\r\n" +
@@ -43,15 +59,20 @@ public class MainClass {
         in = new Scanner(System.in);
 
         //setup SSH port to connect to database and listen on localhost:8080
-        Session session = Helpers.createSession();
+        session = Helpers.createSession();
+        if (session == null) {
+            System.out.println("Ending immediately due to failure in creating session.");
+            System.out.println("Check the credentials in AdminAccount.java. Goodbye...");
+            return;
+        }
 
         handleLogin();
         if (username == null) {
-            System.out.println("Goodbye...");
+            closeResources();
             return;
         }
         int option;
-        while ((option = mainMenuOption()) != 0 && session!=null && session.isConnected()) {
+        while ((option = mainMenuOption()) != 0 && session.isConnected()) {
             System.out.println(option);
             switch (option) {
                 case 1: {
@@ -68,22 +89,7 @@ public class MainClass {
                 }
             }
         }
-        
 
-        //delPortForwardingL throws errors so..wrapped in try-catch
-        try{
-            //localhost port assumed to be 8080, if changed, edit Helpers.java 
-            session.delPortForwardingL(8080);
-        } 
-        catch(Exception e){
-            System.out.println("Error with deleting PortFowarding, session closing anyway");
-        }
-        finally{
-            System.out.println("Closing Session...");
-            session.disconnect();
-        }
-
-        System.out.println("Goodbye...");
-        in.close();
+        closeResources();
     }
 }

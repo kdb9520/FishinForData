@@ -1,31 +1,75 @@
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.time.*;
-
+import java.sql.*;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 public class AccountManager {
-    public static ZonedDateTime lastAccessTimestamp;
+    public static Timestamp lastAccessTimestamp;
+    private static final int MAX_LOGIN_ATTEMPTS = 5;
 
     public static String login() {
-        System.out.println("login called");
-        return "(from login)";
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return null;
+        }
+
+        String login_username = null;
+        int result = 0;
+        int attempt;
+        try (conn) {
+            for (attempt = 1; attempt <= MAX_LOGIN_ATTEMPTS; attempt++) {
+                //TODO super barebones with no input handling
+                System.out.println("Please enter your username:");
+                login_username = MainClass.in.nextLine();
+                System.out.println("Please enter your password:");
+                String login_password = MainClass.in.nextLine();
+
+                Timestamp now = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+                PreparedStatement st = conn.prepareStatement(
+                        "UPDATE user_account SET last_access_timestamp = ? " +
+                                "WHERE username = ? AND password = ?"
+                );
+                st.setTimestamp(1, now);
+                st.setString(2, login_username);
+                st.setBytes(3, Helpers.getHash(login_password));
+
+                //for debug
+                try {
+                    result = st.executeUpdate();
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                }
+
+                if (result == 1) {
+                    System.out.println("Login success");
+                    lastAccessTimestamp = now;
+                    conn.commit();
+                    break;
+                } else {
+                    System.out.println("Invalid credentials (attempt " + attempt + ")");
+                    //Nothing to rollback
+                }
+            }
+            if (attempt > MAX_LOGIN_ATTEMPTS) {
+                System.out.println("Maximum login attempts exceeded.");
+            }
+        } catch (Exception ignored) {}
+        return result == 1 ? login_username : null;
     }
 
     public static String create() {
-        System.out.println("create called");
-
         Connection conn = Helpers.createConnection();
-        if(conn==null){
-            return "Something went wrong establishing connection to database! Check Helpers.java";
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return null;
         }
 
-        try{
-            
+        String new_username = null;
+        int result = 0;
+        try (conn) {
             //TODO super barebones with no input handling
             System.out.println("Please enter a unique username:");
-            String new_username = MainClass.in.nextLine();
-            //TODO add sha-256 hashing for password
+            new_username = MainClass.in.nextLine();
             System.out.println("Please enter a password:");
             String new_password = MainClass.in.nextLine();
 
@@ -36,42 +80,38 @@ public class AccountManager {
             System.out.println("Please enter your last name:");
             String new_lastName = MainClass.in.nextLine();
 
-            Statement st = conn.createStatement();
-            String sql_base="INSERT INTO user_account(username, password, email, first_name, last_name, creation_timestamp, last_access_timestamp) VALUES(\'%s\', \'%s\', \'%s\', \'%s\', \'%s\', NOW(), NOW());";
-            
-            String sql = String.format(sql_base, new_username, new_password, new_email, new_firstName, new_lastName);
-            //System.out.println(sql);
-            int result =0;
-            //result = st.executeQuery(sql);
+            Timestamp now = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+            PreparedStatement st = conn.prepareStatement(
+                    "INSERT INTO user_account(username, password, email, first_name, " +
+                            "last_name, creation_timestamp, last_access_timestamp) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+            st.setString(1, new_username);
+            st.setBytes(2, Helpers.getHash(new_password));
+            st.setString(3, new_email);
+            st.setString(4, new_firstName);
+            st.setString(5, new_lastName);
+            st.setTimestamp(6, now);
+            st.setTimestamp(7, now);
 
             //for debug
-            try{
-                result = st.executeUpdate(sql);
-            }
-            catch(Exception e){
-                System.out.println(e);
+            try {
+                result = st.executeUpdate();
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
             }
 
-            if(result==1){
+            if (result == 1) {
                 System.out.println("Creation success");
-            }
-            else{
+                lastAccessTimestamp = now;
+                conn.commit();
+            } else {
                 System.out.println("Failed to create new user account");
+                //Nothing to rollback
             }
+        } catch (Exception ignored) {}
 
-            //Update lastAccessTimestamp
-            lastAccessTimestamp = ZonedDateTime.now();
-            
-        }catch(Exception e){}
-        finally{
-            try{ //idk why these throw errors, intended for create() to throw the exception
-                conn.rollback();
-                conn.close();}
-            catch(Exception e){}
-        }
-        
-
-        return "(from create)";
+        return result == 1 ? new_username : null;
     }
 
     private static int accountMenuOption() {
