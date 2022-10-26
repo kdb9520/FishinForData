@@ -1,6 +1,8 @@
+import java.security.SecureRandom;
 import java.sql.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 
 public class AccountManager {
     public static Timestamp lastAccessTimestamp;
@@ -18,20 +20,41 @@ public class AccountManager {
         int attempt;
         try (conn) {
             for (attempt = 1; attempt <= MAX_LOGIN_ATTEMPTS; attempt++) {
-                //TODO super barebones with no input handling
                 System.out.println("Please enter your username:");
-                login_username = MainClass.in.nextLine();
+                login_username = MainClass.in.nextLine(); //If too long, it'll be rejected anyway
                 System.out.println("Please enter your password:");
                 String login_password = MainClass.in.nextLine();
 
                 Timestamp now = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
                 PreparedStatement st = conn.prepareStatement(
+                        "SELECT salt FROM user_account WHERE username = ?"
+                );
+                st.setString(1, login_username);
+                String salt = null;
+                //for debug
+                try {
+                    ResultSet set = st.executeQuery();
+                    if (!set.next()) { //User doesn't exist
+                        System.out.println("Invalid credentials (attempt " + attempt + ")");
+                        continue;
+                    }
+                    salt = set.getString(1);
+                    set.close();
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                }
+                if (salt == null) { //Some other error getting the salt
+                    System.out.println("Invalid credentials (attempt " + attempt + ")");
+                    continue;
+                }
+
+                st = conn.prepareStatement(
                         "UPDATE user_account SET last_access_timestamp = ? " +
                                 "WHERE username = ? AND password = ?"
                 );
                 st.setTimestamp(1, now);
                 st.setString(2, login_username);
-                st.setBytes(3, Helpers.getHash(login_password));
+                st.setBytes(3, Helpers.getHash(login_password + salt));
 
                 //for debug
                 try {
@@ -45,7 +68,7 @@ public class AccountManager {
                     lastAccessTimestamp = now;
                     conn.commit();
                     break;
-                } else {
+                } else { //No username+password combo matching (likely wrong password)
                     System.out.println("Invalid credentials (attempt " + attempt + ")");
                     //Nothing to rollback
                 }
@@ -67,32 +90,60 @@ public class AccountManager {
         String new_username = null;
         int result = 0;
         try (conn) {
-            //TODO super barebones with no input handling
-            System.out.println("Please enter a unique username:");
-            new_username = MainClass.in.nextLine();
+            while (new_username == null) { //Ensure username is unique
+                System.out.println("Please enter a unique username:");
+                new_username = Helpers.getCappedLengthInput();
+                PreparedStatement st = conn.prepareStatement(
+                        "SELECT username FROM user_account WHERE username = ?"
+                );
+                st.setString(1, new_username);
+                ResultSet set = st.executeQuery();
+                if (set.next()) {
+                    System.out.println("Username \"" + new_username + "\" is already taken.");
+                    new_username = null;
+                }
+                set.close();
+            }
             System.out.println("Please enter a password:");
-            String new_password = MainClass.in.nextLine();
+            String new_password = MainClass.in.nextLine(); //Password can be any length
 
-            System.out.println("Please enter your email:");
-            String new_email = MainClass.in.nextLine();
+            String new_email = null;
+            while (new_email == null) { //Ensure email is unique
+                System.out.println("Please enter your email:");
+                new_email = Helpers.getCappedLengthInput();
+                PreparedStatement st = conn.prepareStatement(
+                        "SELECT email FROM user_account WHERE email = ?"
+                );
+                st.setString(1, new_email);
+                ResultSet set = st.executeQuery();
+                if (set.next()) {
+                    System.out.println("Email \"" + new_email + "\" is already taken.");
+                    new_email = null;
+                }
+                set.close();
+            }
             System.out.println("Please enter your first name:");
-            String new_firstName = MainClass.in.nextLine();
+            String new_firstName = Helpers.getCappedLengthInput();
             System.out.println("Please enter your last name:");
-            String new_lastName = MainClass.in.nextLine();
+            String new_lastName = Helpers.getCappedLengthInput();
 
             Timestamp now = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+            byte[] saltArr = new byte[24]; //24 full-range bytes = 32 base-64 characters
+            new SecureRandom().nextBytes(saltArr);
+            String salt = Base64.getEncoder().encodeToString(saltArr);
             PreparedStatement st = conn.prepareStatement(
                     "INSERT INTO user_account(username, password, email, first_name, " +
-                            "last_name, creation_timestamp, last_access_timestamp) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                            "last_name, creation_timestamp, last_access_timestamp, salt) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
             st.setString(1, new_username);
-            st.setBytes(2, Helpers.getHash(new_password));
+            st.setBytes(2, Helpers.getHash(new_password + salt));
             st.setString(3, new_email);
             st.setString(4, new_firstName);
             st.setString(5, new_lastName);
             st.setTimestamp(6, now);
             st.setTimestamp(7, now);
+            st.setString(8, salt);
 
             //for debug
             try {
@@ -169,10 +220,10 @@ public class AccountManager {
     }
 
     private static void showPrivateProfileMenu() {
-        /* TODO Ideally, show everything except password, but allow user to change
-        *   any non-timestamp thing (including password)- if username gets changed,
-        *   remember to update MainClass.username for consistency */
-        System.out.println("(Private profile)");
+        /* TODO Phase 4 only: Ideally, show everything except password, but allow user
+            to change any non-timestamp thing (including password)- if username gets
+            changed, remember to update MainClass.username for consistency */
+        System.out.println("(Private profile to be added in Phase 4)");
     }
 
     private static void followingYou() {

@@ -35,6 +35,20 @@ public class Helpers {
         }
     }
 
+    public static String getCappedLengthInput() {
+        return getCappedLengthInput(50); //Most common cap is 50
+    }
+
+    public static String getCappedLengthInput(int maxLength) {
+        while (true) {
+            String input = MainClass.in.nextLine();
+            if (input.length() <= maxLength) {
+                return input;
+            }
+            System.out.println("Input too long, try again (max " + maxLength + " characters):");
+        }
+    }
+
     //Session opening and closing will be handled by MainClass
     public static Session createSession() {
         Session session = null;
@@ -83,10 +97,12 @@ public class Helpers {
             //System.out.println("Database connection established");
 
             // Do something with the database EXAMPLE
-            //Statement st = conn.createStatement();
-            //ResultSet rs = st.executeQuery("Select * FROM user_account;");
+            //PreparedStatement st = conn.prepareStatement(
+            //        "SELECT * FROM user_account");
+            //ResultSet rs = st.executeQuery();
             //rs.next();
             //System.out.println(rs.getString("username"));
+            //rs.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
