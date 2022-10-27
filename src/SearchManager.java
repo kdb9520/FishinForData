@@ -19,7 +19,7 @@ public class SearchManager {
                 "2: Search by artist name\r\n" +
                 "3: Search albums\r\n" +
                 "4: Search by genre\r\n" +
-                "0: Return to Main Menu\r\n" +
+                "0: Return to Previous Menu\r\n" +
                 "What would you like to do?: ");
         return Helpers.getOption(4);
     }

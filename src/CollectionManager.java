@@ -60,16 +60,14 @@ public class CollectionManager {
                     "SELECT collection_name, count(cr.release_id) AS number_of_songs,\n" +
                             "sum(length) as total_length\n" +
                             "FROM collection AS c\n" +
-                            "JOIN collection_release AS cr ON cr.collection_id=c.collection_id\n" +
-                            "JOIN music_release AS mr ON mr.release_id=cr.release_id\n" +
-                            "WHERE cr.username=c.username\n" +
-                            "AND c.username= ?\n" +
-                            "GROUP BY c.collection_id\n"
+                            "LEFT JOIN collection_release AS cr ON cr.collection_id=c.collection_id\n" +
+                            "LEFT JOIN music_release AS mr ON mr.release_id=cr.release_id\n" +
+                            "WHERE c.username= ?\n" + //did we only want to show collectin that had music, or should we show the empty ones too?
+                            "GROUP BY c.collection_name, c.collection_id\n"
             );
 
             nameSongCountDur.setString(1, currentUsername);
 
-            // TODO get number of songs in each collection and total song duration
 
             try {
                 ResultSet result = null;
@@ -98,14 +96,14 @@ public class CollectionManager {
                 String name = MainClass.in.nextLine();
 
                 PreparedStatement qry = conn.prepareStatement(
-                        "SELECT collectionID, COUNT(*) AS size FROM collection WHERE collection_name = ?"
+                        "SELECT collection_id, COUNT(*) AS size FROM collection WHERE collection_name = ? GROUP BY collection_id"
                 );
                 qry.setString(1, name);
 
                 try {
                     ResultSet result = null;
                     result = qry.executeQuery();
-
+                    result.next();
                     int size = result.getInt("size");
 
                     if (size == 1) {
@@ -113,7 +111,7 @@ public class CollectionManager {
                         System.out.println("Would you like to add items to the collection?" +
                                 "\n\tEnter '1' for 'Yes' or '0' for 'No'.");
                         int add = Integer.parseInt(MainClass.in.nextLine());
-                        return add == 1 ? result.getInt("collectionID") : -1;
+                        return add == 1 ? result.getInt("collection_id") : -1;
                     } else if (size > 1) {
                         System.out.println("More than one collection found.");
                     } else {
@@ -146,34 +144,49 @@ public class CollectionManager {
         try (conn) {
 
             PreparedStatement st = conn.prepareStatement(
-                    "INSERT INTO collection(collection_name, username)" +
+                    "INSERT INTO collection(collection_name, username)\n" +
                             "VALUES (?, ?)"
             );
 
             st.setString(1, newColName);
             st.setString(2, MainClass.username);
 
-            ResultSet result = null;
+            int result=0;
 
-            try {
+            result = st.executeUpdate();
 
-                result = st.executeQuery();
+            if (result == 1) {
+                System.out.println(newColName + " created!");
+                //shows updated list of collections
+                showCollections(false);
 
-                if (result != null) {
-                    System.out.println(newColName + " created!");
-                    showCollections(false);
-                } else {
-                    System.out.println("Unable to create new collection.");
-                }
+                //get the id for the new collection to return
+                st = conn.prepareStatement(
+                        "SELECT collection_id FROM collection " + 
+                        "WHERE username = ? AND collection_name = ? "
+                    );
+                st.setString(1, MainClass.username);
+                st.setString(2, newColName);
 
-            } catch (Exception e) {
-                System.out.println("Could not create collection, an error occurred:");
-                System.out.println(e.getMessage());
+                ResultSet rs = st.executeQuery();
+                rs.next();
+                return rs.getInt("collection_id");
+            } else {
+                System.out.println("Unable to create new collection.");
+                return -1;
             }
 
-        } catch (Exception ignored) {}
+            
+            
+            
 
-        return 1;
+        } catch (Exception e) {
+            System.out.println("Could not create collection, an error occurred:");
+            System.out.println(e.getMessage());
+            return -1;
+        }
+
+        //return -1;
     }
 
     private static void addItems(int collectionID) {
@@ -200,7 +213,7 @@ public class CollectionManager {
 
             try (conn) {
                 PreparedStatement del = conn.prepareStatement(
-                        "DELETE FROM collection WHERE collectionID = ? and username = ?"
+                        "DELETE FROM collection WHERE collection_id = ? and username = ?"
                 );
                 del.setInt(1, collectionID);
                 del.setString(2, MainClass.username);
