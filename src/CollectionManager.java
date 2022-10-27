@@ -56,20 +56,15 @@ public class CollectionManager {
 
             String currentUsername = MainClass.username;
 
-//            PreparedStatement st = conn.prepareStatement(
-//                    "SELECT collectionName, collectionID FROM collection WHERE username = ?"
-//            );
-//            st.setString(1, currentUsername);
-
             PreparedStatement nameSongCountDur = conn.prepareStatement(
                     "SELECT collection_name, count(cr.release_id) AS number_of_songs,\n" +
                             "sum(length) as total_length\n" +
                             "FROM collection AS c\n" +
                             "JOIN collection_release AS cr ON cr.collection_id=c.collection_id\n" +
-                            "JOIN music_release_test mr ON mr.release_id=cr.release_id\n" +
+                            "JOIN music_release AS mr ON mr.release_id=cr.release_id\n" +
                             "WHERE cr.username=c.username\n" +
                             "AND c.username= ?\n" +
-                            "GROUP BY collection_id\n"
+                            "GROUP BY c.collection_id\n"
             );
 
             nameSongCountDur.setString(1, currentUsername);
@@ -83,7 +78,7 @@ public class CollectionManager {
                 if (result != null) {
                     System.out.println("Your Collections: ");
                     while (result.next()) {
-                        String collectionName = result.getString("collectionName");
+                        String collectionName = result.getString("collection_name");
                         int itemCount = result.getInt("number_of_songs");
                         int collDuration = result.getInt("total_length")/60;
                         System.out.println(collectionName + " contains "
@@ -103,7 +98,7 @@ public class CollectionManager {
                 String name = MainClass.in.nextLine();
 
                 PreparedStatement qry = conn.prepareStatement(
-                        "SELECT collectionID, COUNT(*) AS size FROM collection WHERE collectionName = ?"
+                        "SELECT collectionID, COUNT(*) AS size FROM collection WHERE collection_name = ?"
                 );
                 qry.setString(1, name);
 
@@ -151,7 +146,7 @@ public class CollectionManager {
         try (conn) {
 
             PreparedStatement st = conn.prepareStatement(
-                    "INSERT INTO collection(collectionName, username)" +
+                    "INSERT INTO collection(collection_name, username)" +
                             "VALUES (?, ?)"
             );
 
