@@ -38,11 +38,11 @@ public class SearchManager {
                             "select mr.title as song_title, artist_name, genre_name,\n"+
                             "mr.length, mr2.title as album_title, mr.release_id as song_id, mr2.release_id as album_id \n"+
                             //"    --,count(lbu.release_id)"+
-                            "FROM music_release_test mr \n"+
-                            "JOIN artist_music1 am on mr.release_id = am.release_id \n"+
-                            "JOIN song_1 s on s.release_id=mr.release_id \n"+
-                            "LEFT JOIN album_song1 a on s.release_id = a.song_id \n"+
-                            "LEFT JOIN music_release_test mr2 on mr2.release_id = a.album_id \n"+
+                            "FROM music_release mr \n"+
+                            "JOIN artist_music am on mr.release_id = am.release_id \n"+
+                            "JOIN song s on s.release_id=mr.release_id \n"+
+                            "LEFT JOIN album_song a on s.release_id = a.song_id \n"+
+                            "LEFT JOIN music_release mr2 on mr2.release_id = a.album_id \n"+
                             "--JOIN listened_by_user lbu on mr.release_id = lbu.release_id \n"+
                             "WHERE " + columnName + " like '%" + keyword + "%' "+
                             "GROUP BY song_title, artist_name, genre_name, \n"+
@@ -65,12 +65,15 @@ public class SearchManager {
 
     }
 
+    /*Display the search results */
     public static void printResultSet(ResultSet rs) throws SQLException{
         int numOfColumns = rs.getMetaData().getColumnCount();
 
         System.out.println("");
         try{
 
+            //The ResultSet has song_id and album_id as its last two
+            //columns but we dont want to show them, hence the minus 2
             for(int i=1; i<=numOfColumns-2; i++){
                 System.out.print(rs.getMetaData().getColumnName(i) + " | ");
             }
@@ -87,15 +90,16 @@ public class SearchManager {
                 System.out.println("");
             }
         }catch(Exception e){
-
+            System.out.println("Error is printResultSet : " + e.toString());
         }
     }
 
 
-    public static void addSongToCollection(int collectionID, String songID){
+    //Will add a song or album to the user's collection
+    public static void addMusicToCollection(int collectionID, String musicID){
         Connection conn = Helpers.createConnection();
         if(conn==null){
-            System.out.println("Something wrong with connection in addSongToCollection.");
+            System.out.println("Something wrong with connection in addMusicToCollection.");
         }
         try(conn){
             PreparedStatement st = conn.prepareStatement(
@@ -104,27 +108,28 @@ public class SearchManager {
                             );
             st.setInt(1, collectionID);
             st.setString(2, MainClass.username);
-            st.setString(3, songID);
+            st.setString(3, musicID);
 
             int result=st.executeUpdate();
             if (result == 1) {
-                System.out.println("Song successfully added to collection");
-                conn.commit();
+                System.out.println("Music successfully added to collection");
+                //conn.commit();
             } else {
-                System.out.println("Failed to add song to collection");
+                System.out.println("Failed to add music to collection");
                 conn.rollback();
             }
 
         }catch(Exception e){
-            System.out.println("Error in searchForMusic() : " + e.toString());
+            System.out.println("Error in addMusicToCollection() : " + e.toString());
         }
     }
 
 
-    public static void playSong(ResultSet rs){
+    //Will play a song for the user and update the database given a valid release_id
+    public static void playMusic(ResultSet rs, String music_release_id){
         Connection conn = Helpers.createConnection();
         if(conn==null){
-            System.out.println("Something wrong with connection in addSongToCollection.");
+            System.out.println("Something wrong with connection in playSong.");
         }
         try(conn){
             PreparedStatement st = conn.prepareStatement("INSERT INTO listened_by_user(username, release_id) " + 
@@ -132,15 +137,15 @@ public class SearchManager {
                                     );
             
             st.setString(1, MainClass.username);
-            st.setString(2, rs.getString("song_id"));
+            st.setString(2, rs.getString(music_release_id));
             
             int result = st.executeUpdate();  
 
             if (result == 1) {
-                System.out.println("Song successfully played");
+                System.out.println("Music successfully played");
                 //conn.commit();
             } else {
-                System.out.println("Failed to play song.");
+                System.out.println("Failed to play music.");
                 //Nothing to rollback
                 conn.rollback();
             }
@@ -152,39 +157,43 @@ public class SearchManager {
     }
 
 
-    private static int doSomethingWithSongMenu(ResultSet rs) throws SQLException{
-        System.out.println("\r\nWhat would you like to do with " + rs.getString("song_title") + " ?");
-        System.out.print("1: Add song to your current collection\r\n" +
-                        "2: Play Song\r\n" +
+    /*Display the menu of what you can do after selecting a song/album.
+    Important for musicType to be either "song" or "album", note the lowercasing.
+    */
+    private static int doSomethingWithSongMenu(ResultSet rs, String musicType) throws SQLException{
+        System.out.println("\r\nWhat would you like to do with " + rs.getString(musicType+"_title") + " ?");
+        System.out.print("1: Add " + musicType + " to your current collection\r\n" +
+                        "2: Play " + musicType + "\r\n" +
                         "0: Return to Search Menu\r\n" +
                         "What would you like to do?: ");
         return Helpers.getOption(2);
     }
 
-    public static void selectSong(int collectionID, ResultSet rs) throws SQLException{
+    public static void selectSong(int collectionID, ResultSet rs, String columnLabel, String musicType) throws SQLException{
         System.out.print("\r\nSelect a song number from above, or enter 0 to go back to Search Menu:");
-        int songNum = Integer.parseInt(MainClass.in.nextLine());
-        System.out.println(songNum);
+        int musicNum = Integer.parseInt(MainClass.in.nextLine());
+        //System.out.println(musicNum);
 
-        if(songNum>0){
+        if(musicNum>0){
             rs.first(); //ResultSet is currently set on the first row returned, which would be number 1.
-            if(songNum>1){
+            if(musicNum>1){
                 //get ResultSet to the selected song
-                for(int i=0; i<songNum-1; i++){
+                for(int i=0; i<musicNum-1; i++){
                     rs.next();
                 }
             }
             
-            int option = doSomethingWithSongMenu(rs);
+            int option = doSomethingWithSongMenu(rs, musicType);
             switch(option){
                 case 1:{
                     //add song to collection
-                    addSongToCollection(collectionID, rs.getString("song_id"));
+                    addMusicToCollection(collectionID, rs.getString(columnLabel));
                     break;
                 }
 
                 case 2:{
-                    playSong(rs);
+                    //play the song or album
+                    playMusic(rs, columnLabel);
                     break;
                 }
             }
@@ -196,7 +205,7 @@ public class SearchManager {
 
 
     public static void songSearchLoop(int collectionID) {
-        /* TODO Implement looping search based on input, allow songs that
+        /* Looping search based on input, allow songs that
         *   are found to be listened to and added to collection- if searching
         *   by album, the album can also be listened to and added */
 
@@ -213,7 +222,7 @@ public class SearchManager {
                         //mr.title is music_release.title 
                         ResultSet rs = searchForMusic("mr.title", songName);
                         printResultSet(rs);
-                        selectSong(collectionID, rs);
+                        selectSong(collectionID, rs, "song_id", "song");
                         //System.out.println(rs.getString(1));
                         break;
                     }
@@ -223,7 +232,7 @@ public class SearchManager {
                         //artist_name is artist_music1.artist_name 
                         ResultSet rs = searchForMusic("artist_name", artistName);
                         printResultSet(rs);
-                        selectSong(collectionID, rs);
+                        selectSong(collectionID, rs, "song_id", "song");
                         break;
 
                     }
@@ -233,7 +242,7 @@ public class SearchManager {
                         //mr2.title is music_release.title 
                         ResultSet rs = searchForMusic("mr2.title", albumName);
                         printResultSet(rs);
-                        rs.first();
+                        selectSong(collectionID, rs, "album_id", "album");
                         break;
                     }
                     case 4:{ //by genre
@@ -242,7 +251,7 @@ public class SearchManager {
                         //genre_name is song1.genre_name 
                         ResultSet rs = searchForMusic("genre_name", genre);
                         printResultSet(rs);
-                        selectSong(collectionID, rs);
+                        selectSong(collectionID, rs, "song_id", "song");
                         break;
                     }
                 }
