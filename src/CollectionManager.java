@@ -108,10 +108,11 @@ public class CollectionManager {
 
                     if (size == 1) {
                         System.out.println("You selected: \n\t" + name);
-                        System.out.println("Would you like to add items to the collection?" +
-                                "\n\tEnter '1' for 'Yes' or '0' for 'No'.");
-                        int add = Integer.parseInt(MainClass.in.nextLine());
-                        return add == 1 ? result.getInt("collection_id") : -1;
+//                        System.out.println("Would you like to add items to the collection?" +
+//                                "\n\tEnter '1' for 'Yes' or '0' for 'No'.");
+//                        int add = Integer.parseInt(MainClass.in.nextLine());
+//                        return add == 1 ? result.getInt("collection_id") : -1;
+                        return result.getInt("collection_id");
                     } else if (size > 1) {
                         System.out.println("More than one collection found.");
                     } else {
@@ -203,7 +204,7 @@ public class CollectionManager {
 
         System.out.println("Are you sure you want to do this?" +
                 "\n\tEnter '1' for 'Yes' or '0' for 'No'.");
-        int option = Integer.parseInt(MainClass.in.next());
+        int option = Integer.parseInt(MainClass.in.nextLine());
         if (option == 1) {
 
             Connection conn = Helpers.createConnection();
@@ -220,10 +221,10 @@ public class CollectionManager {
 
                 try {
 
-                    ResultSet result = null;
-                    result = del.executeQuery();
+                    int result = 0;
+                    result = del.executeUpdate();
 
-                    if (result != null) {
+                    if (result != 0) {
                         System.out.println("Collection deleted!");
                         showCollections(false);
                     } else {
