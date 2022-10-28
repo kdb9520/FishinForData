@@ -6,14 +6,15 @@ import java.sql.SQLException;
 public class CollectionManager {
     private static int collectionMenuOption() {
         System.out.print("\r\nCurrent menu: COLLECTIONS\r\n\r\n" +
-                "1: View Your Collections (+ Remove Items)\r\n" +
+                "1: View Your Collections\r\n" +
                 "2: Create and Fill New Collection\r\n" +
                 "3: Add Items to Existing Collection\r\n" +
-                "4: View Items in an Existing Collection\r\n" +
+                "4: View Items in an Existing Collection (+ Listen or Delete Items)\r\n" +
+                "5: Listen to an Existing Collection\r\n" +
                 Helpers.DELETE + ": ! Delete a Collection !\r\n" +
                 "0: Return to Main Menu\r\n" +
                 "What would you like to do?: ");
-        return Helpers.getOption(4, true);
+        return Helpers.getOption(5, true);
     }
 
     public static void collectionMenu() {
@@ -38,6 +39,10 @@ public class CollectionManager {
                 }
                 case 4: { // remove items
                     viewItems();
+                    break;
+                }
+                case 5: {
+                    listenToCollection();
                     break;
                 }
                 case Helpers.DELETE: { // Delete collection
@@ -101,7 +106,8 @@ public class CollectionManager {
                 String name = MainClass.in.nextLine();
 
                 PreparedStatement qry = conn.prepareStatement(
-                        "SELECT collection_id, COUNT(*) AS size FROM collection WHERE collection_name = ? GROUP BY collection_id"
+                        "SELECT collection_id, COUNT(*) AS size FROM collection WHERE " +
+                                "collection_name = ? GROUP BY collection_id"
                 );
                 qry.setString(1, name);
 
@@ -132,6 +138,43 @@ public class CollectionManager {
         } catch (Exception ignored) {}
 
         return -1;
+    }
+
+    private static void listenToCollection() {
+        int collectionID = showCollections(true);
+
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+        }
+
+        try(conn) {
+            PreparedStatement st = conn.prepareStatement(
+                    "INSERT INTO listened_by_user(username, release_id)\n" +
+                    "SELECT username, release_id FROM collection_release\n" +
+                            "WHERE collection_id=? and username=?"
+            );
+
+            st.setInt(1, collectionID);
+            st.setString(2, MainClass.username);
+
+            try {
+
+                int rs = 0;
+                rs = st.executeUpdate();
+
+                if (rs != 0) {
+                    System.out.println("Successfully listened to the collection!");
+                } else {
+                    System.out.println("Not able to listen to the collection!");
+                }
+
+            } catch (Exception e) {
+                System.out.println("Error listening:");
+                System.out.println(e);
+            }
+
+        } catch (Exception ignored) {}
     }
 
     private static int createCollection() {
@@ -178,6 +221,7 @@ public class CollectionManager {
                 return rs.getInt("collection_id");
             } else {
                 System.out.println("Unable to create new collection.");
+                conn.rollback();
                 return -1;
             }
 
@@ -292,12 +336,9 @@ public class CollectionManager {
                         }
                     }
                 
-                    System.out.println("Selected item: " + release.getString("title"));
+                    System.out.println("\nSelected item: " + release.getString("title"));
                     System.out.println("Choose what to do with this item:");
-                    System.out.println("\tEnter '1' to play item");
-                    System.out.println("\tEnter '999' to delete item");
-                    System.out.println("\tEnter '0' to exit this menu");
-                    int option = Integer.parseInt(MainClass.in.nextLine());
+                    int option = songOptions();
                     switch (option) {
                         case 0: {
                             break;
@@ -308,14 +349,12 @@ public class CollectionManager {
                             break;
                         }
                         case Helpers.DELETE: {
-                            deleteItem(release.getString("release_id"));
+                            deleteItem(collectionID, release.getString("release_id"));
                             break;
                         }
                         default:
                             break;
                     }
-                    
-           
                 }
             }
             catch(Exception e){
@@ -324,7 +363,51 @@ public class CollectionManager {
         }
     }
 
-    private static void deleteItem(String releaseID) {
+    private static void deleteItem(int collectionID, String releaseID) {
+
+        System.out.println("(Delete collection item, ID " + releaseID + ")");
+
+        System.out.println("Are you sure you want to do this?" +
+                "\n\tEnter '1' for 'Yes' or '0' for 'No'.");
+        int option = Helpers.getOption(1, true);
+        if (option == 1) {
+
+            Connection conn = Helpers.createConnection();
+            if (conn == null) {
+                System.out.println("Database connection error! Check Helpers.java");
+            }
+
+            try (conn) {
+                PreparedStatement del = conn.prepareStatement(
+                        "DELETE FROM collection_release WHERE collection_id=? and username=? and release_id=?"
+                );
+                del.setInt(1, collectionID);
+                del.setString(2, MainClass.username);
+                del.setString(3, releaseID);
+
+                try {
+
+                    int result = 0;
+                    result = del.executeUpdate();
+
+                    if (result != 0) {
+                        System.out.println("Item deleted from collection!");
+                        showCollections(false);
+                    } else {
+                        System.out.println("Unable to delete item from collection.");
+                        conn.rollback();
+                    }
+
+                } catch (Exception e) {
+                    System.out.println("Could not delete item, an error occurred:");
+                    System.out.println(e.getMessage());
+                }
+
+            } catch (Exception ignored) {}
+
+        } else {
+            System.out.println("Exiting the delete menu.");
+        }
 
     }
 
@@ -334,7 +417,7 @@ public class CollectionManager {
 
         System.out.println("Are you sure you want to do this?" +
                 "\n\tEnter '1' for 'Yes' or '0' for 'No'.");
-        int option = Integer.parseInt(MainClass.in.nextLine());
+        int option = Helpers.getOption(1, true);
         if (option == 1) {
 
             Connection conn = Helpers.createConnection();
@@ -359,6 +442,7 @@ public class CollectionManager {
                         showCollections(false);
                     } else {
                         System.out.println("Unable to delete collection.");
+                        conn.rollback();
                     }
 
                 } catch (Exception e) {
