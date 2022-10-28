@@ -37,14 +37,14 @@ public class SearchManager {
         try(conn){
             PreparedStatement st = conn.prepareStatement(
                             "select mr.title as song_title, artist_name, genre_name,\n"+
-                            "mr.length, mr2.title as album_title, mr.release_id as song_id, mr2.release_id as album_id \n"+
-                            //"    --,count(lbu.release_id)"+
+                            "mr.length, mr2.title as album_title,count(lbu.release_id) as listen_count, \n"+
+                            "    mr.release_id as song_id, mr2.release_id as album_id \n"+
                             "FROM music_release mr \n"+
                             "JOIN artist_music am on mr.release_id = am.release_id \n"+
                             "JOIN song s on s.release_id=mr.release_id \n"+
                             "LEFT JOIN album_song a on s.release_id = a.song_id \n"+
                             "LEFT JOIN music_release mr2 on mr2.release_id = a.album_id \n"+
-                            "--JOIN listened_by_user lbu on mr.release_id = lbu.release_id \n"+
+                            "LEFT JOIN listened_by_user lbu on mr.release_id = lbu.release_id \n"+
                             "WHERE " + columnName + " like '%" + keyword + "%' "+
                             "GROUP BY song_title, artist_name, genre_name, \n"+
                             "    mr.length, album_title, mr.release_id, mr2.release_id \n"+ 
