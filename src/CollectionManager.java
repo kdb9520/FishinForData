@@ -1,6 +1,7 @@
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class CollectionManager {
     private static int collectionMenuOption() {
@@ -8,10 +9,11 @@ public class CollectionManager {
                 "1: View Your Collections (+ Remove Items)\r\n" +
                 "2: Create and Fill New Collection\r\n" +
                 "3: Add Items to Existing Collection\r\n" +
+                "4: View Items in an Existing Collection\r\n" +
                 Helpers.DELETE + ": ! Delete a Collection !\r\n" +
                 "0: Return to Main Menu\r\n" +
                 "What would you like to do?: ");
-        return Helpers.getOption(3, true);
+        return Helpers.getOption(4, true);
     }
 
     public static void collectionMenu() {
@@ -34,6 +36,10 @@ public class CollectionManager {
                     addItems(collectionID);
                     break;
                 }
+                case 4: { // remove items
+                    viewItems();
+                    break;
+                }
                 case Helpers.DELETE: { // Delete collection
                     deleteCollection();
                     break;
@@ -43,7 +49,6 @@ public class CollectionManager {
     }
 
     public static int showCollections(boolean select) {
-        // TODO Implement showing and selecting collections
         System.out.println("(Collections, select " + select + ")");
 
         Connection conn = Helpers.createConnection();
@@ -62,7 +67,7 @@ public class CollectionManager {
                             "FROM collection AS c\n" +
                             "LEFT JOIN collection_release AS cr ON cr.collection_id=c.collection_id\n" +
                             "LEFT JOIN music_release AS mr ON mr.release_id=cr.release_id\n" +
-                            "WHERE c.username= ?\n" + //did we only want to show collectin that had music, or should we show the empty ones too?
+                            "WHERE c.username= ?\n" +
                             "GROUP BY c.collection_name, c.collection_id\n"
             );
 
@@ -130,7 +135,6 @@ public class CollectionManager {
     }
 
     private static int createCollection() {
-        // TODO Implement creation of empty collection
         System.out.println("(Create collection)");
 
         System.out.println("Enter a name for your collection.");
@@ -177,10 +181,6 @@ public class CollectionManager {
                 return -1;
             }
 
-            
-            
-            
-
         } catch (Exception e) {
             System.out.println("Could not create collection, an error occurred:");
             System.out.println(e.getMessage());
@@ -197,9 +197,145 @@ public class CollectionManager {
         SearchManager.songSearchLoop(collectionID);
     }
 
+
+
+    private static void viewItems() {
+        int collectionID = showCollections(true);
+        System.out.println("(Delete items from collection, ID " + collectionID + ")");
+
+        Connection conn = Helpers.createConnection();
+        if(conn==null){
+            System.out.println("Something wrong with connection in removeItems.");
+        }
+        try(conn){
+            PreparedStatement st = conn.prepareStatement(
+                    "SELECT collection_name, mr.title\n" +
+                            "FROM collection AS c\n" +
+                            "LEFT JOIN collection_release AS cr ON cr.collection_id=c.collection_id\n" +
+                            "LEFT JOIN music_release AS mr ON mr.release_id=cr.release_id\n" +
+                            "WHERE c.collection_id = ? AND c.username = ?\n" +
+                            "GROUP BY c.collection_name, c.collection_id\n"
+            );
+            st.setInt(1, collectionID);
+            st.setString(2, MainClass.username);
+
+            ResultSet result = st.executeQuery();
+
+            if (result != null) {
+                System.out.println("Items in the collection:");
+                int numOfColumns = result.getMetaData().getColumnCount();
+
+                System.out.println("");
+                try{
+
+                    //The ResultSet has song_id and album_id as its last two
+                    //columns, but we don't want to show them, hence the minus 2
+                    for(int i=1; i<=numOfColumns; i++){
+                        System.out.print(result.getMetaData().getColumnName(i) + " | ");
+                    }
+                    System.out.println("");
+                    int index=1;
+                    while(result.next()){
+                        System.out.print(index + ": ");
+                        for(int i=1; i<=numOfColumns; i++){
+
+                            System.out.print(result.getString(i) + " | ");
+
+                        }
+                        index++;
+                        System.out.println("");
+                    }
+                }catch(Exception e){
+                    System.out.println("Error is printResultSet : " + e.toString());
+                }
+
+                System.out.println("Would you like to listen to or delete an item?");
+                System.out.println("Enter '1' to select an item or '0' to exit");
+                int option = Integer.parseInt(MainClass.in.nextLine());
+                switch (option) {
+                    case 0: {
+                        break;
+                    }
+                    case 1: {
+                        selectFromCollection(collectionID);
+                        break;
+                    }
+                }
+                //conn.commit();
+            } else {
+                System.out.println("Failed to add music to collection");
+                conn.rollback();
+            }
+
+        }catch(Exception e){
+            System.out.println("Error in addMusicToCollection() : " + e.toString());
+        }
+    }
+
+    private static void selectFromCollection(int collectionID) {
+        System.out.print("\r\nSelect a song number from above, or enter 0 to go back:");
+        int musicNum = Integer.parseInt(MainClass.in.nextLine());
+        //System.out.println(musicNum);
+
+        if (musicNum != 0) {
+
+            Connection conn = Helpers.createConnection();
+            if (conn == null) {
+                System.out.println("Something wrong with connection in removeItems.");
+            }
+            try (conn) {
+                PreparedStatement item = conn.prepareStatement(
+                        "SELECT title, release_date, cr.release_id FROM collection_release AS cr\n" +
+                                "LEFT JOIN music_release AS mr ON cr.release_id = mr.release_id\n" +
+                                "WHERE cr.collection_id=?\n" +
+                                "AND cr.username=?"
+                );
+
+                item.setInt(1, collectionID);
+                item.setString(2, MainClass.username);
+
+                try {
+                    ResultSet release = item.executeQuery();
+                    if (release != null) {
+                        System.out.println("Selected item: " + release.getString("title"));
+                        System.out.println("Choose what to do with this item:");
+                        System.out.println("\tEnter '1' to play item");
+                        System.out.println("\tEnter '999' to delete item");
+                        System.out.println("\tEnter '0' to exit this menu");
+                        int option = Integer.parseInt(MainClass.in.nextLine());
+                        switch (option) {
+                            case 0: {
+                                break;
+                            }
+                            case 1: {
+                                SearchManager.playMusic(release, "release_id");
+                                break;
+                            }
+                            case Helpers.DELETE: {
+                                deleteItem(release.getString("release_id"));
+                                break;
+                            }
+                            default:
+                                break;
+                        }
+                    } else {
+                        System.out.println("Could not find item.");
+                    }
+                } catch (Exception e) {
+                    System.out.println("An error occurred:");
+                    System.out.println(e);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static void deleteItem(String releaseID) {
+
+    }
+
     private static void deleteCollection() {
         int collectionID = showCollections(true);
-        // TODO Implement confirmation and deletion
         System.out.println("(Delete collection, ID " + collectionID + ")");
 
         System.out.println("Are you sure you want to do this?" +
