@@ -49,7 +49,7 @@ public class CollectionManager {
     }
 
     public static int showCollections(boolean select) {
-        System.out.println("(Collections, select " + select + ")");
+        //System.out.println("(Collections, select " + select + ")");
 
         Connection conn = Helpers.createConnection();
         if (conn == null) {
@@ -200,21 +200,25 @@ public class CollectionManager {
 
 
     private static void viewItems() {
+        //users selects their colelction they want to view
         int collectionID = showCollections(true);
-        System.out.println("(Delete items from collection, ID " + collectionID + ")");
 
         Connection conn = Helpers.createConnection();
         if(conn==null){
-            System.out.println("Something wrong with connection in removeItems.");
+            System.out.println("Something wrong with connection in viewItems.");
         }
         try(conn){
+            //get all music in a single collection
             PreparedStatement st = conn.prepareStatement(
-                    "SELECT collection_name, mr.title\n" +
+                    "SELECT collection_name, mr.title, cr.release_id\n" +
                             "FROM collection AS c\n" +
                             "LEFT JOIN collection_release AS cr ON cr.collection_id=c.collection_id\n" +
                             "LEFT JOIN music_release AS mr ON mr.release_id=cr.release_id\n" +
                             "WHERE c.collection_id = ? AND c.username = ?\n" +
-                            "GROUP BY c.collection_name, c.collection_id\n"
+                            "GROUP BY c.collection_name, mr.title, cr.release_id, c.collection_id\n"
+                            //allows us to go through the ResultSet multiple times
+                            ,ResultSet.TYPE_SCROLL_INSENSITIVE,
+                            ResultSet.CONCUR_READ_ONLY
             );
             st.setInt(1, collectionID);
             st.setString(2, MainClass.username);
@@ -228,19 +232,18 @@ public class CollectionManager {
                 System.out.println("");
                 try{
 
-                    //The ResultSet has song_id and album_id as its last two
-                    //columns, but we don't want to show them, hence the minus 2
+                    //Display the music in the collection
                     for(int i=1; i<=numOfColumns; i++){
-                        System.out.print(result.getMetaData().getColumnName(i) + " | ");
+                        System.out.print(result.getMetaData().getColumnName(i) + " | "); //print out column headers
                     }
+
                     System.out.println("");
                     int index=1;
-                    while(result.next()){
+                    //print data points
+                    while(result.next()){ 
                         System.out.print(index + ": ");
                         for(int i=1; i<=numOfColumns; i++){
-
                             System.out.print(result.getString(i) + " | ");
-
                         }
                         index++;
                         System.out.println("");
@@ -249,19 +252,9 @@ public class CollectionManager {
                     System.out.println("Error is printResultSet : " + e.toString());
                 }
 
-                System.out.println("Would you like to listen to or delete an item?");
-                System.out.println("Enter '1' to select an item or '0' to exit");
-                int option = Integer.parseInt(MainClass.in.nextLine());
-                switch (option) {
-                    case 0: {
-                        break;
-                    }
-                    case 1: {
-                        selectFromCollection(collectionID);
-                        break;
-                    }
-                }
-                //conn.commit();
+                //pass control to selectFromCollection function
+                selectFromCollection(collectionID, result);
+                
             } else {
                 System.out.println("Failed to add music to collection");
                 conn.rollback();
@@ -272,60 +265,61 @@ public class CollectionManager {
         }
     }
 
-    private static void selectFromCollection(int collectionID) {
+
+    private static int songOptions(){
+        System.out.print("\r\nCurrent menu: Music Selection\r\n\r\n" +
+                "1: Play Music\r\n" +
+                Helpers.DELETE + ": ! Delete Song from Collection !\r\n" +
+                "0: Return to Previous Menu\r\n" +
+                "What would you like to do?: ");
+        return Helpers.getOption(1, true);
+    }
+
+    private static void selectFromCollection(int collectionID, ResultSet release) {
         System.out.print("\r\nSelect a song number from above, or enter 0 to go back:");
         int musicNum = Integer.parseInt(MainClass.in.nextLine());
         //System.out.println(musicNum);
 
         if (musicNum != 0) {
-
-            Connection conn = Helpers.createConnection();
-            if (conn == null) {
-                System.out.println("Something wrong with connection in removeItems.");
-            }
-            try (conn) {
-                PreparedStatement item = conn.prepareStatement(
-                        "SELECT title, release_date, cr.release_id FROM collection_release AS cr\n" +
-                                "LEFT JOIN music_release AS mr ON cr.release_id = mr.release_id\n" +
-                                "WHERE cr.collection_id=?\n" +
-                                "AND cr.username=?"
-                );
-
-                item.setInt(1, collectionID);
-                item.setString(2, MainClass.username);
-
-                try {
-                    ResultSet release = item.executeQuery();
-                    if (release != null) {
-                        System.out.println("Selected item: " + release.getString("title"));
-                        System.out.println("Choose what to do with this item:");
-                        System.out.println("\tEnter '1' to play item");
-                        System.out.println("\tEnter '999' to delete item");
-                        System.out.println("\tEnter '0' to exit this menu");
-                        int option = Integer.parseInt(MainClass.in.nextLine());
-                        switch (option) {
-                            case 0: {
-                                break;
-                            }
-                            case 1: {
-                                SearchManager.playMusic(release, "release_id");
-                                break;
-                            }
-                            case Helpers.DELETE: {
-                                deleteItem(release.getString("release_id"));
-                                break;
-                            }
-                            default:
-                                break;
+            try{
+                //Get the resultSet to be on the row index of whichever song the user chose
+                if(musicNum>0){
+                    release.first(); //ResultSet is currently set on the first row returned, which would be number 1.
+                    if(musicNum>1){
+                        //get ResultSet to the row of the selected song
+                        for(int i=0; i<musicNum-1; i++){
+                            release.next();
                         }
-                    } else {
-                        System.out.println("Could not find item.");
                     }
-                } catch (Exception e) {
-                    System.out.println("An error occurred:");
-                    System.out.println(e);
+                
+                    System.out.println("Selected item: " + release.getString("title"));
+                    System.out.println("Choose what to do with this item:");
+                    System.out.println("\tEnter '1' to play item");
+                    System.out.println("\tEnter '999' to delete item");
+                    System.out.println("\tEnter '0' to exit this menu");
+                    int option = Integer.parseInt(MainClass.in.nextLine());
+                    switch (option) {
+                        case 0: {
+                            break;
+                        }
+                        case 1: {
+                            //play music already implemented in SearchManager
+                            SearchManager.playMusic(release, "release_id");
+                            break;
+                        }
+                        case Helpers.DELETE: {
+                            deleteItem(release.getString("release_id"));
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                    
+           
                 }
-            } catch (Exception ignored) {
+            }
+            catch(Exception e){
+                System.out.println("Exception in selectFromCollection: " + e);
             }
         }
     }

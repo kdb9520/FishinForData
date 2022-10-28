@@ -127,7 +127,9 @@ public class SearchManager {
 
 
     //Will play a song for the user and update the database given a valid release_id
-    public static void playMusic(ResultSet rs, String music_release_id){
+    //columnName is either "song_id" or "album_id" and they both are FKs to release_id
+    //assumed that the ResultSet rs is on the index of the row of the song that wants to be play
+    public static void playMusic(ResultSet rs, String columnName){
         Connection conn = Helpers.createConnection();
         if(conn==null){
             System.out.println("Something wrong with connection in playSong.");
@@ -138,7 +140,7 @@ public class SearchManager {
                                     );
             
             st.setString(1, MainClass.username);
-            st.setString(2, rs.getString(music_release_id));
+            st.setString(2, rs.getString(columnName));
             
             int result = st.executeUpdate();  
 
@@ -170,6 +172,8 @@ public class SearchManager {
         return Helpers.getOption(2);
     }
 
+    //columnLabel is either "song_id" or album_id
+    //musicType is either "song" or "album"
     public static void selectSong(int collectionID, ResultSet rs, String columnLabel, String musicType) throws SQLException{
         System.out.print("\r\nSelect a song number from above, or enter 0 to go back to Search Menu:");
         int musicNum = Integer.parseInt(MainClass.in.nextLine());
