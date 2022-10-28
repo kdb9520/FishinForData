@@ -42,7 +42,7 @@ public class CollectionManager {
         }
     }
 
-    private static int showCollections(boolean select) {
+    public static int showCollections(boolean select) {
         // TODO Implement showing and selecting collections
         System.out.println("(Collections, select " + select + ")");
 

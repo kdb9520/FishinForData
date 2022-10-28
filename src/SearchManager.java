@@ -6,7 +6,8 @@ import java.sql.SQLException;
 public class SearchManager {
     public static void songSearchLoop() {
         System.out.println("If you would like to add to a collection, please enter its id, otherwise enter zero.");
-        int collectionID = Integer.parseInt(MainClass.in.nextLine());
+        int collectionID = CollectionManager.showCollections(true);
+        //int collectionID = Integer.parseInt(MainClass.in.nextLine());
         songSearchLoop(collectionID);
     }
 
