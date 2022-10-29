@@ -1,7 +1,4 @@
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 
 public class CollectionManager {
     private static int collectionMenuOption() {
@@ -85,8 +82,7 @@ public class CollectionManager {
 
 
             try {
-                ResultSet result = null;
-                result = nameSongCountDur.executeQuery();
+                ResultSet result = nameSongCountDur.executeQuery();
 
                 if (result != null) {
                     System.out.println("Your Collections: ");
@@ -117,8 +113,7 @@ public class CollectionManager {
                 qry.setString(1, name);
 
                 try {
-                    ResultSet result = null;
-                    result = qry.executeQuery();
+                    ResultSet result = qry.executeQuery();
                     result.next();
                     int size = result.getInt("size");
 
@@ -152,6 +147,7 @@ public class CollectionManager {
         Connection conn = Helpers.createConnection();
         if (conn == null) {
             System.out.println("Database connection error! Check Helpers.java");
+            return;
         }
 
         System.out.println("Enter new name:");
@@ -168,8 +164,7 @@ public class CollectionManager {
 
             try {
 
-                int rs = 0;
-                rs = st.executeUpdate();
+                int rs = st.executeUpdate();
 
                 if (rs != 0) {
                     System.out.println("Successfully updated the collection!");
@@ -179,7 +174,7 @@ public class CollectionManager {
 
             } catch (Exception e) {
                 System.out.println("Error updating:");
-                System.out.println(e);
+                System.out.println(e.getMessage());
             }
 
         } catch (Exception ignored) {}
@@ -191,6 +186,7 @@ public class CollectionManager {
         Connection conn = Helpers.createConnection();
         if (conn == null) {
             System.out.println("Database connection error! Check Helpers.java");
+            return;
         }
 
         try(conn) {
@@ -205,8 +201,7 @@ public class CollectionManager {
 
             try {
 
-                int rs = 0;
-                rs = st.executeUpdate();
+                int rs = st.executeUpdate();
 
                 if (rs != 0) {
                     System.out.println("Successfully listened to the collection!");
@@ -216,7 +211,7 @@ public class CollectionManager {
 
             } catch (Exception e) {
                 System.out.println("Error listening:");
-                System.out.println(e);
+                System.out.println(e.getMessage());
             }
 
         } catch (Exception ignored) {}
@@ -244,9 +239,7 @@ public class CollectionManager {
             st.setString(1, newColName);
             st.setString(2, MainClass.username);
 
-            int result=0;
-
-            result = st.executeUpdate();
+            int result = st.executeUpdate();
 
             if (result == 1) {
                 System.out.println(newColName + " created!");
@@ -289,12 +282,13 @@ public class CollectionManager {
 
 
     private static void viewItems() {
-        //users selects their colelction they want to view
+        //user selects their collection they want to view
         int collectionID = showCollections(true);
 
         Connection conn = Helpers.createConnection();
         if(conn==null){
             System.out.println("Something wrong with connection in viewItems.");
+            return;
         }
         try(conn){
             //get all music in a single collection
@@ -318,7 +312,7 @@ public class CollectionManager {
                 System.out.println("Items in the collection:");
                 int numOfColumns = result.getMetaData().getColumnCount();
 
-                System.out.println("");
+                System.out.println();
                 try{
 
                     //Display the music in the collection
@@ -326,7 +320,7 @@ public class CollectionManager {
                         System.out.print(result.getMetaData().getColumnName(i) + " | "); //print out column headers
                     }
 
-                    System.out.println("");
+                    System.out.println();
                     int index=1;
                     //print data points
                     while(result.next()){ 
@@ -335,10 +329,10 @@ public class CollectionManager {
                             System.out.print(result.getString(i) + " | ");
                         }
                         index++;
-                        System.out.println("");
+                        System.out.println();
                     }
                 }catch(Exception e){
-                    System.out.println("Error is printResultSet : " + e.toString());
+                    System.out.println("Error is printResultSet : " + e);
                 }
 
                 //pass control to selectFromCollection function
@@ -350,7 +344,7 @@ public class CollectionManager {
             }
 
         }catch(Exception e){
-            System.out.println("Error in addMusicToCollection() : " + e.toString());
+            System.out.println("Error in addMusicToCollection() : " + e);
         }
     }
 
@@ -420,6 +414,7 @@ public class CollectionManager {
             Connection conn = Helpers.createConnection();
             if (conn == null) {
                 System.out.println("Database connection error! Check Helpers.java");
+                return;
             }
 
             try (conn) {
@@ -432,8 +427,7 @@ public class CollectionManager {
 
                 try {
 
-                    int result = 0;
-                    result = del.executeUpdate();
+                    int result = del.executeUpdate();
 
                     if (result != 0) {
                         System.out.println("Item deleted from collection!");
@@ -468,6 +462,7 @@ public class CollectionManager {
             Connection conn = Helpers.createConnection();
             if (conn == null) {
                 System.out.println("Database connection error! Check Helpers.java");
+                return;
             }
 
             try (conn) {
@@ -479,8 +474,7 @@ public class CollectionManager {
 
                 try {
 
-                    int result = 0;
-                    result = del.executeUpdate();
+                    int result = del.executeUpdate();
 
                     if (result != 0) {
                         System.out.println("Collection deleted!");

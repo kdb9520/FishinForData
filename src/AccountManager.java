@@ -94,11 +94,11 @@ public class AccountManager {
                 System.out.println("Please enter a unique username:");
                 new_username = Helpers.getCappedLengthInput();
                 PreparedStatement st = conn.prepareStatement(
-                        "SELECT username FROM user_account WHERE username = ?"
+                        "SELECT 1 FROM user_account WHERE username = ?"
                 );
                 st.setString(1, new_username);
                 ResultSet set = st.executeQuery();
-                if (set.next()) {
+                if (set.next() || new_username.equals("")) {
                     System.out.println("Username \"" + new_username + "\" is already taken.");
                     new_username = null;
                 }
@@ -112,11 +112,11 @@ public class AccountManager {
                 System.out.println("Please enter your email:");
                 new_email = Helpers.getCappedLengthInput();
                 PreparedStatement st = conn.prepareStatement(
-                        "SELECT email FROM user_account WHERE email = ?"
+                        "SELECT 1 FROM user_account WHERE email = ?"
                 );
                 st.setString(1, new_email);
                 ResultSet set = st.executeQuery();
-                if (set.next()) {
+                if (set.next() || new_email.equals("")) {
                     System.out.println("Email \"" + new_email + "\" is already taken.");
                     new_email = null;
                 }
@@ -168,9 +168,9 @@ public class AccountManager {
     private static int accountMenuOption() {
         System.out.print("\r\nCurrent menu: ACCOUNT/FOLLOWS\r\n\r\n" +
                 "1: Your Account Profile/Management\r\n" +
-                "2: Following You (+ Follow Back)\r\n" +
-                "3: Your Follows (+ Remove Follow)\r\n" +
-                "4: Search for Accounts to Follow\r\n" +
+                "2: Following You (List Only)\r\n" +
+                "3: Your Follows (+ Unfollow)\r\n" +
+                "4: Account Search (View Profile / Follow)\r\n" +
                 "0: Return to Main Menu\r\n" +
                 "What would you like to do?: ");
         return Helpers.getOption(4);
@@ -179,7 +179,6 @@ public class AccountManager {
     public static void accountMenu() {
         int option;
         while ((option = accountMenuOption()) != 0) {
-            System.out.println(option);
             switch (option) {
                 case 1: { // Account profile
                     System.out.println("What others see:");
@@ -206,17 +205,34 @@ public class AccountManager {
     }
 
     private static void showPublicProfile(String username, String email) {
-        if (username == null) {
-            // TODO Query for username if not provided in method, for safety
-            username = "?";
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return;
         }
-        if (email != null) {
-            // Only print email and username if not self-displaying
-            System.out.println("Email: " + email);
-            System.out.println("Username: " + username);
-        }
-        // TODO Phase 4 only: display #collections/followers/following and top10
-        System.out.println("(More statistics to be added in Phase 4)");
+        try (conn) {
+            if (email != null) {
+                // Only print email and username if not self-displaying
+                if (username == null) { // Get username if not given
+                    PreparedStatement st = conn.prepareStatement(
+                            "SELECT username FROM user_account WHERE email = ?"
+                    );
+                    st.setString(1, email);
+                    ResultSet result = st.executeQuery();
+                    if (!result.next()) {
+                        System.out.println("Email \"" + email + "\" not found.");
+                        result.close();
+                        return;
+                    }
+                    username = result.getString("username");
+                    result.close();
+                }
+                System.out.println("Email: " + email);
+                System.out.println("Username: " + username);
+            }
+            // TODO Phase 4 only: display #collections/followers/following and top10
+            System.out.println("(More statistics to be added in Phase 4)");
+        } catch (Exception ignored) {}
     }
 
     private static void showPrivateProfileMenu() {
@@ -227,17 +243,117 @@ public class AccountManager {
     }
 
     private static void followingYou() {
-        // TODO Implement pagination through following you
-        System.out.println("(Following you)");
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return;
+        }
+        System.out.println("Users following you:");
+        try (conn) {
+            PreparedStatement st = conn.prepareStatement(
+                    "SELECT username, email FROM user_account u " +
+                            "JOIN follow f on u.username = f.follower " +
+                            "WHERE f.followee = ? ORDER BY username"
+            );
+            st.setString(1, MainClass.username);
+            ResultSet result = st.executeQuery();
+            SearchManager.printResultSet(result, 0);
+            result.close();
+        } catch (Exception ignored) {}
     }
 
     private static void yourFollows() {
-        // TODO Implement pagination through your follows
-        System.out.println("(Your follows)");
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return;
+        }
+        System.out.println("Users you're following:");
+        try (conn) {
+            PreparedStatement st = conn.prepareStatement(
+                    "SELECT username, email FROM user_account u " +
+                            "JOIN follow f on u.username = f.followee " +
+                            "WHERE f.follower = ? ORDER BY username",
+                    ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE
+            );
+            st.setString(1, MainClass.username);
+            ResultSet result = st.executeQuery();
+            SearchManager.printResultSet(result, 0);
+            while (true) {
+                System.out.println("Enter a number to select that user, or 0 to exit.");
+                int selection = Integer.parseInt(MainClass.in.nextLine());
+                if (selection == 0) {
+                    break;
+                } //Check that selection refers to an actual row
+                if (selection < 0 || !result.absolute(selection)) {
+                    System.out.println("Invalid selection.");
+                    continue;
+                }
+                String followee_username = result.getString("username");
+                String followee_email = result.getString("email");
+                showPublicProfile(followee_username, followee_email);
+                System.out.println("Unfollow? 0=keep following, " +
+                        Helpers.DELETE +  "=unfollow: ");
+                if (Helpers.getOption(0, true) == Helpers.DELETE) {
+                    result.deleteRow(); //Also deletes from database
+                    result.beforeFirst(); //Now that list has changed, re-print it
+                    System.out.println("Unfollowed. Remaining users you're following:");
+                    SearchManager.printResultSet(result, 0);
+                }
+            }
+            result.close();
+        } catch (Exception ignored) {}
     }
 
     private static void emailSearch() {
-        // TODO Implement search through emails via input
-        System.out.println("(Email search)");
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return;
+        }
+        try (conn) {
+            while (true) {
+                System.out.println("Enter an email (exact, case sensitive), or nothing to exit.");
+                String search_email = MainClass.in.nextLine();
+                if (search_email.equals("")) {
+                    break;
+                } //Follower check must go inside left join to show username if not already following
+                PreparedStatement st = conn.prepareStatement(
+                        "SELECT username, follower FROM user_account u " +
+                                "LEFT JOIN follow f ON u.username = f.followee " +
+                                "AND f.follower = ? WHERE email = ?"
+                );
+                st.setString(1, MainClass.username);
+                st.setString(2, search_email);
+                ResultSet result = st.executeQuery();
+                if (!result.next()) {
+                    System.out.println("Email \"" + search_email + "\" not found.");
+                    result.close();
+                    continue;
+                }
+                String search_username = result.getString("username");
+
+                showPublicProfile(search_username, search_email);
+                if (result.getString("follower") != null) {
+                    System.out.println("You're already following this user.");
+                    System.out.println("(To unfollow, use the \"Your Follows\" menu)");
+                    result.close();
+                    continue;
+                } //Only ask to follow if not already following
+                result.close();
+                System.out.println("Follow? 0=ignore, 1=add follow: ");
+                if (Helpers.getOption(1) == 1) {
+                    st = conn.prepareStatement("INSERT INTO " +
+                            "follow(follower, followee) VALUES (?, ?)");
+                    st.setString(1, MainClass.username);
+                    st.setString(2, search_username);
+                    if (st.executeUpdate() == 1) {
+                        System.out.println("You're now following this user.");
+                    } else {
+                        System.out.println("Error adding follow!");
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
     }
 }

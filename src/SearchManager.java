@@ -1,7 +1,4 @@
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 
 public class SearchManager {
     public static void songSearchLoop() {
@@ -48,8 +45,8 @@ public class SearchManager {
                             "WHERE " + columnName + " like '%" + keyword + "%' "+
                             "GROUP BY song_title, artist_name, genre_name, \n"+
                             "    mr.length, album_title, mr.release_id, mr2.release_id \n"+ 
-                            "ORDER BY song_title asc, \n"+
-                            "artist_name asc;"
+                            "ORDER BY song_title, \n"+
+                            "artist_name;"
                             //allows us to go through the ResultSet multiple times
                             ,ResultSet.TYPE_SCROLL_INSENSITIVE,
                             ResultSet.CONCUR_READ_ONLY);
@@ -59,39 +56,42 @@ public class SearchManager {
             rs=st.executeQuery();
 
         }catch(Exception e){
-            System.out.println("Error in searchForMusic() : " + e.toString());
-        }finally{}
+            System.out.println("Error in searchForMusic() : " + e);
+        }
         return rs;
 
 
     }
 
-    /*Display the search results */
-    public static void printResultSet(ResultSet rs) throws SQLException{
-        int numOfColumns = rs.getMetaData().getColumnCount();
+    /* As used in SearchManager, skip last 2 columns */
+    public static void printResultSet(ResultSet rs) {
+        printResultSet(rs, 2);
+    }
 
-        System.out.println("");
+    /* Display the search results */
+    public static void printResultSet(ResultSet rs, int skipLast) {
         try{
-
+            int numOfColumns = rs.getMetaData().getColumnCount();
+            System.out.println();
             //The ResultSet has song_id and album_id as its last two
-            //columns but we dont want to show them, hence the minus 2
-            for(int i=1; i<=numOfColumns-2; i++){
+            //columns, but we don't want to show them, hence the minus skipLast
+            for(int i=1; i<=numOfColumns-skipLast; i++){
                 System.out.print(rs.getMetaData().getColumnName(i) + " | ");
             }
-            System.out.println("");
+            System.out.println();
             int index=1;
             while(rs.next()){
                 System.out.print(index + ": ");
-                for(int i=1; i<=numOfColumns-2; i++){
+                for(int i=1; i<=numOfColumns-skipLast; i++){
                     
                     System.out.print(rs.getString(i) + " | ");
 
                 }
                 index++;
-                System.out.println("");
+                System.out.println();
             }
         }catch(Exception e){
-            System.out.println("Error is printResultSet : " + e.toString());
+            System.out.println("Error is printResultSet : " + e);
         }
     }
 
@@ -101,6 +101,7 @@ public class SearchManager {
         Connection conn = Helpers.createConnection();
         if(conn==null){
             System.out.println("Something wrong with connection in addMusicToCollection.");
+            return;
         }
         try(conn){
             PreparedStatement st = conn.prepareStatement(
@@ -121,7 +122,7 @@ public class SearchManager {
             }
 
         }catch(Exception e){
-            System.out.println("Error in addMusicToCollection() : " + e.toString());
+            System.out.println("Error in addMusicToCollection() : " + e);
         }
     }
 
@@ -133,9 +134,11 @@ public class SearchManager {
         Connection conn = Helpers.createConnection();
         if(conn==null){
             System.out.println("Something wrong with connection in playSong.");
+            return;
         }
         try(conn){
-            PreparedStatement st = conn.prepareStatement("INSERT INTO listened_by_user(username, release_id) " + 
+            PreparedStatement st = conn.prepareStatement(
+                    "INSERT INTO listened_by_user(username, release_id) " +
                                     "VALUES(?, ?);"
                                     );
             
@@ -154,7 +157,7 @@ public class SearchManager {
             }
         
         }catch(Exception e){
-            System.out.println("Error in playSong() : " + e.toString());
+            System.out.println("Error in playSong() : " + e);
 
         }
     }
@@ -264,8 +267,7 @@ public class SearchManager {
         
             }
 
-        }catch(Exception e){}
-        finally{}
-        
+        }catch(Exception ignored){}
+
     }
 }
