@@ -11,10 +11,11 @@ public class CollectionManager {
                 "3: Add Items to Existing Collection\r\n" +
                 "4: View Items in an Existing Collection (+ Listen or Delete Items)\r\n" +
                 "5: Listen to an Existing Collection\r\n" +
+                "6: Rename an Existing Collection\r\n" +
                 Helpers.DELETE + ": ! Delete a Collection !\r\n" +
                 "0: Return to Main Menu\r\n" +
                 "What would you like to do?: ");
-        return Helpers.getOption(5, true);
+        return Helpers.getOption(6, true);
     }
 
     public static void collectionMenu() {
@@ -43,6 +44,10 @@ public class CollectionManager {
                 }
                 case 5: {
                     listenToCollection();
+                    break;
+                }
+                case 6: {
+                    renameCollection();
                     break;
                 }
                 case Helpers.DELETE: { // Delete collection
@@ -138,6 +143,46 @@ public class CollectionManager {
         } catch (Exception ignored) {}
 
         return -1;
+    }
+
+    public static void renameCollection() {
+
+        int collectionID = showCollections(true);
+
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+        }
+
+        System.out.println("Enter new name:");
+        String newName = MainClass.in.nextLine();
+
+        try(conn) {
+            PreparedStatement st = conn.prepareStatement(
+                    "UPDATE collection SET collection_name = ? WHERE collection_id=? AND username=?"
+            );
+
+            st.setString(1, newName);
+            st.setInt(2, collectionID);
+            st.setString(3, MainClass.username);
+
+            try {
+
+                int rs = 0;
+                rs = st.executeUpdate();
+
+                if (rs != 0) {
+                    System.out.println("Successfully updated the collection!");
+                } else {
+                    System.out.println("Not able to update the collection!");
+                }
+
+            } catch (Exception e) {
+                System.out.println("Error updating:");
+                System.out.println(e);
+            }
+
+        } catch (Exception ignored) {}
     }
 
     private static void listenToCollection() {
