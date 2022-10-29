@@ -37,7 +37,7 @@ public class SearchManager {
         try(conn){
             PreparedStatement st = conn.prepareStatement(
                             "select mr.title as song_title, artist_name, genre_name,\n"+
-                            "mr.length, mr2.title as album_title, count(lbu.release_id)/2 as listen_count, \n"+
+                            "mr.length, mr2.title as album_title, count(lbu.lbu_pk)/2 as listen_count, \n"+
                             "    mr.release_id as song_id, mr2.release_id as album_id \n"+
                             "FROM music_release mr \n"+
                             "JOIN artist_music am on mr.release_id = am.release_id \n"+
