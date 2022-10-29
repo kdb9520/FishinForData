@@ -11,7 +11,7 @@ public class CollectionManager {
                 "3: Add Items to Existing Collection\r\n" +
                 "4: View Items in an Existing Collection (+ Listen or Delete Items)\r\n" +
                 "5: Listen to an Existing Collection\r\n" +
-                "6: Rename an Existing Collection\r\n" +
+                "6: Rename an Existing Collection \r\n" +
                 Helpers.DELETE + ": ! Delete a Collection !\r\n" +
                 "0: Return to Main Menu\r\n" +
                 "What would you like to do?: ");
