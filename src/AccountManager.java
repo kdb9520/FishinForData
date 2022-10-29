@@ -274,7 +274,7 @@ public class AccountManager {
                     "SELECT username, email FROM user_account u " +
                             "JOIN follow f on u.username = f.followee " +
                             "WHERE f.follower = ? ORDER BY username",
-                    ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE
+                    ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY
             );
             st.setString(1, MainClass.username);
             ResultSet result = st.executeQuery();
@@ -291,13 +291,23 @@ public class AccountManager {
                 }
                 String followee_username = result.getString("username");
                 String followee_email = result.getString("email");
+                result.close(); //Current result is no longer useful
                 showPublicProfile(followee_username, followee_email);
                 System.out.println("Unfollow? 0=keep following, " +
                         Helpers.DELETE +  "=unfollow: ");
                 if (Helpers.getOption(0, true) == Helpers.DELETE) {
-                    result.deleteRow(); //Also deletes from database
-                    result.beforeFirst(); //Now that list has changed, re-print it
-                    System.out.println("Unfollowed. Remaining users you're following:");
+                    PreparedStatement st2 = conn.prepareStatement(
+                            "DELETE FROM follow WHERE follower = ? AND followee = ?"
+                    ); //Only delete from follow (result.deleteRow deletes from user_account too)
+                    st2.setString(1, MainClass.username);
+                    st2.setString(2, followee_username);
+                    if (st2.executeUpdate() == 1) {
+                        System.out.println("Unfollowed.");
+                    } else {
+                        System.out.println("Error unfollowing!");
+                    } //Reload result with updated list
+                    result = st.executeQuery();
+                    System.out.println("Remaining users you're following:");
                     SearchManager.printResultSet(result, 0);
                 }
             }
@@ -334,6 +344,11 @@ public class AccountManager {
                 String search_username = result.getString("username");
 
                 showPublicProfile(search_username, search_email);
+                if (search_username.equals(MainClass.username)) {
+                    System.out.println("You cannot follow yourself.");
+                    result.close();
+                    continue;
+                }
                 if (result.getString("follower") != null) {
                     System.out.println("You're already following this user.");
                     System.out.println("(To unfollow, use the \"Your Follows\" menu)");
