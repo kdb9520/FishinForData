@@ -5,7 +5,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 public class AccountManager {
-    public static Timestamp lastAccessTimestamp;
+    private static Timestamp previousSessionTimestamp;
+    private static Timestamp sessionStartTimestamp;
     private static final int MAX_LOGIN_ATTEMPTS = 5;
 
     public static String login() {
@@ -17,7 +18,8 @@ public class AccountManager {
 
         String login_username = null;
         int result = 0;
-        int attempt;
+        int attempt; //Temporary timestamp to prevent data leaking, just in case
+        Timestamp tempPreviousSessionTimestamp = null;
         try (conn) {
             for (attempt = 1; attempt <= MAX_LOGIN_ATTEMPTS; attempt++) {
                 System.out.println("Please enter your username:");
@@ -27,7 +29,8 @@ public class AccountManager {
 
                 Timestamp now = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
                 PreparedStatement st = conn.prepareStatement(
-                        "SELECT salt FROM user_account WHERE username = ?"
+                        "SELECT last_access_timestamp, salt " +
+                                "FROM user_account WHERE username = ?"
                 );
                 st.setString(1, login_username);
                 String salt = null;
@@ -38,7 +41,9 @@ public class AccountManager {
                         System.out.println("Invalid credentials (attempt " + attempt + ")");
                         continue;
                     }
-                    salt = set.getString(1);
+                    tempPreviousSessionTimestamp = set.getTimestamp(
+                            "last_access_timestamp");
+                    salt = set.getString("salt");
                     set.close();
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
@@ -65,7 +70,8 @@ public class AccountManager {
 
                 if (result == 1) {
                     System.out.println("Login success");
-                    lastAccessTimestamp = now;
+                    previousSessionTimestamp = tempPreviousSessionTimestamp;
+                    sessionStartTimestamp = now;
                     conn.commit();
                     break;
                 } else { //No username+password combo matching (likely wrong password)
@@ -154,7 +160,8 @@ public class AccountManager {
 
             if (result == 1) {
                 System.out.println("Creation success");
-                lastAccessTimestamp = now;
+                previousSessionTimestamp = null;
+                sessionStartTimestamp = now;
                 conn.commit();
             } else {
                 System.out.println("Failed to create new user account");
@@ -204,34 +211,83 @@ public class AccountManager {
         }
     }
 
-    private static void showPublicProfile(String username, String email) {
+    private static void showPublicProfile(String profile_username, String profile_email) {
         Connection conn = Helpers.createConnection();
         if (conn == null) {
             System.out.println("Database connection error! Check Helpers.java");
             return;
         }
         try (conn) {
-            if (email != null) {
+            if (profile_email != null) {
                 // Only print email and username if not self-displaying
-                if (username == null) { // Get username if not given
+                if (profile_username == null) { // Get username if not given
                     PreparedStatement st = conn.prepareStatement(
                             "SELECT username FROM user_account WHERE email = ?"
                     );
-                    st.setString(1, email);
+                    st.setString(1, profile_email);
                     ResultSet result = st.executeQuery();
                     if (!result.next()) {
-                        System.out.println("Email \"" + email + "\" not found.");
+                        System.out.println("Email \"" + profile_email + "\" not found.");
                         result.close();
                         return;
                     }
-                    username = result.getString("username");
+                    profile_username = result.getString("username");
                     result.close();
                 }
-                System.out.println("Email: " + email);
-                System.out.println("Username: " + username);
+                System.out.println("Email: " + profile_email);
+                System.out.println("Username: " + profile_username);
             }
-            // TODO Phase 4 only: display #collections/followers/following and top10
-            System.out.println("(More statistics to be added in Phase 4)");
+
+            PreparedStatement st = conn.prepareStatement(
+                    "SELECT artist_name, COUNT(DISTINCT lbu) AS num_listens, " +
+                            "COUNT(DISTINCT co) AS num_collections, " +
+                            "COUNT(DISTINCT followers) AS num_followers, " +
+                            "COUNT(DISTINCT followees) AS num_following " +
+                            "FROM user_account u " +
+                            "LEFT JOIN collection co ON u.username = co.username " +
+                            "LEFT JOIN follow followers ON u.username = followers.followee " +
+                            "LEFT JOIN follow followees ON u.username = followees.follower " +
+                            "LEFT JOIN listened_by_user lbu ON u.username = lbu.username " +
+                            "LEFT JOIN artist_music am ON lbu.release_id = am.release_id " +
+                            "WHERE u.username = ? " +
+                            "GROUP BY (u.username, artist_name) " +
+                            "ORDER BY num_listens DESC, artist_name LIMIT 10"
+            ); // Get user's top 10 listened artists + counts of collections/followers/following
+            st.setString(1, profile_username);
+            ResultSet result = st.executeQuery();
+            if (!result.next()) {
+                System.out.println("Error fetching additional statistics!\r\n");
+                result.close();
+                return;
+            } // Display simple counts first
+            System.out.println("# Collections: " + result.getInt("num_collections"));
+            System.out.println("# Followers: " + result.getInt("num_followers"));
+            System.out.println("# Following: " + result.getInt("num_following"));
+
+            System.out.println("Top 10 Listened Artists:\r\n");
+            String artist_name = result.getString("artist_name");
+            if (artist_name == null) {
+                System.out.println("(No listened artists)\r\n");
+                result.close();
+                return;
+            } // Print #1 separately to check if there are any listens at all
+            int num_listens = result.getInt("num_listens");
+            System.out.println("#1: " + artist_name +
+                    " | Listens: " + num_listens);
+
+            // Iterate through #2 to #10
+            for (int i = 2; i <= 10; i++) {
+                if (!result.next() || (artist_name = result
+                        .getString("artist_name")) == null) {
+                    System.out.println("(No more listened artists)");
+                    break;
+                } // (Stop early if there are fewer than 10 listened artists)
+                num_listens = result.getInt("num_listens");
+                System.out.println("#" + i + ": " + artist_name +
+                        " | Listens: " + num_listens);
+            } // Always close the ResultSet and add an extra newline
+            result.close();
+            System.out.println();
         } catch (Exception ignored) {}
     }
 
