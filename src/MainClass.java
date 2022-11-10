@@ -50,9 +50,10 @@ public class MainClass {
                 "1: Account and Follows\r\n" +
                 "2: *** Music Search ***\r\n" +
                 "3: Created Collections\r\n" +
+                "4: View Popular Songs and Recommendations\r\n" +
                 "0: Logout and Exit Program\r\n" +
                 "What would you like to do?: ");
-        return Helpers.getOption(3);
+        return Helpers.getOption(4);
     }
 
     public static void main(String[] args) {
@@ -86,6 +87,9 @@ public class MainClass {
                 case 3: {
                     CollectionManager.collectionMenu();
                     break;
+                }
+                case 4: {
+                    RecommendationManager.recommendationMenu();
                 }
             }
         }
