@@ -155,7 +155,7 @@ public class SearchManager {
                 //Nothing to rollback
                 conn.rollback();
             }
-        
+
         }catch(Exception e){
             System.out.println("Error in playSong() : " + e);
 
@@ -170,9 +170,10 @@ public class SearchManager {
         System.out.println("\r\nWhat would you like to do with " + rs.getString(musicType+"_title") + " ?");
         System.out.print("1: Add " + musicType + " to your current collection\r\n" +
                         "2: Play " + musicType + "\r\n" +
+                        "3: Leave a review for " + musicType + "\r\n" +
                         "0: Return to Search Menu\r\n" +
                         "What would you like to do?: ");
-        return Helpers.getOption(2);
+        return Helpers.getOption(3);
     }
 
     //columnLabel is either "song_id" or album_id
@@ -204,9 +205,60 @@ public class SearchManager {
                     playMusic(rs, columnLabel);
                     break;
                 }
+
+                case 3:{
+                    //leave a review
+                    leaveReview(rs, columnLabel);
+                    break;
+                }
             }
 
 
+        }
+    }
+
+    private static void leaveReview(ResultSet rs, String columnLabel) {
+        Connection conn = Helpers.createConnection();
+        if(conn==null){
+            System.out.println("Something wrong with connection in leaveReview.");
+            return;
+        }
+        try(conn){
+            int userStar;
+            System.out.println("Enter a rating from 1 (worst) to 5 (best).");
+            do {
+                userStar = Integer.parseInt(MainClass.in.nextLine());
+                if (userStar < 1 || userStar > 5) {
+                    System.out.println("Please enter a valid number!");
+                }
+            } while (userStar < 1 || userStar > 5);
+
+            System.out.println("Write a review for this release (<500 characters).");
+            String userText = MainClass.in.nextLine();
+
+            PreparedStatement st = conn.prepareStatement(
+                    "INSERT INTO review(release_id, username, text_field, star_rating) " +
+                            "VALUES(?, ?, ?, ?);"
+            );
+
+            st.setString(1, rs.getString(columnLabel));
+            st.setString(2, MainClass.username);
+            st.setString(3, userText);
+            st.setInt(4, userStar);
+
+            int result = st.executeUpdate();
+
+            if (result == 1) {
+                System.out.println("Music successfully left a review");
+                //conn.commit();
+            } else {
+                System.out.println("Failed to leave review.");
+                //Nothing to rollback
+                conn.rollback();
+            }
+
+        }catch(Exception e){
+            System.out.println("Error leaving review : " + e);
         }
     }
 
