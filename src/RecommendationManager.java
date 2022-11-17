@@ -21,7 +21,7 @@ public class RecommendationManager {
                     break;
                 }
                 case 4: { // for you
-//                    emailSearch();
+                    basedOnPlayHistory();
                     break;
                 }
             }
@@ -153,5 +153,105 @@ public class RecommendationManager {
         }
 
     }
+
+    private static void basedOnPlayHistory(){
+        Connection conn = Helpers.createConnection();
+        if (conn == null) {
+            System.out.println("Database connection error! Check Helpers.java");
+            return;
+        }
+
+        try (conn) {
+            PreparedStatement st = conn.prepareStatement(
+                "select title, artist_name, genre_name, listen_count, release_id from " + 
+                "( select mr.title, am.artist_name, otg.genre_name, otg.listen_count, mr.release_id from " + 
+                "( select genre_name, count(lbu_pk) as listen_count " +
+                "from listened_by_user lbu " +
+                "left join (select release_id, genre_name " +
+                "                    from song s " +
+                "                    UNION ALL " +
+                "                    select album_id as release_id, genre_name " +
+                "                    from album_genre) as release_genre " +
+                "on lbu.release_id= release_genre.release_id " +
+                "where username=? " +
+                "group by genre_name " +
+                "order by listen_count desc) as utg " +
+                "left join " +
+                "(select lbu.release_id, genre_name, count(lbu_pk) as listen_count " +
+                "from listened_by_user lbu " +
+                "left join (select release_id, genre_name " +
+                "                    from song s " +
+                "                    UNION ALL " +
+                "                    select album_id as release_id, genre_name " +
+                "                    from album_genre) as release_genre " +
+                "on lbu.release_id= release_genre.release_id " +
+                "where username != ?  " +
+                "group by genre_name, lbu.release_id " +
+                "order by listen_count " +
+                "desc limit 30 " +
+                ") as otg " +
+                "on utg.genre_name=otg.genre_name " +
+                "left join music_release mr on mr.release_id=otg.release_id " +
+                "left join artist_music am on am.release_id=mr.release_id " +
+                "where otg.release_id not in (select release_id from listened_by_user where username=?) " +
+                "order by utg.listen_count desc, otg.listen_count desc " +
+                ") as by_genre " +
+                "UNION " +
+                "( " +
+                "select mr.title, ota.artist_name, release_genre.genre_name, ota.listen_count, mr.release_id " +
+                "from " +
+                "(select artist_name, count(lbu_pk) as listen_count " +
+                "from listened_by_user lbu " +
+                "left join artist_music on lbu.release_id= artist_music.release_id " +
+                "where username=? " +
+                "group by artist_name " +
+                "order by listen_count desc) as uta  " +
+
+                "left join " +
+                "(select lbu.release_id, artist_name, count(lbu_pk) as listen_count " +
+                "from listened_by_user lbu " +
+                "left join artist_music " +
+                "on lbu.release_id= artist_music.release_id " +
+                "where username!=? " +
+                "group by artist_name, lbu.release_id " +
+                "order by listen_count " +
+                "desc limit 500 " +
+                ") as ota " +
+                "on uta.artist_name=ota.artist_name " +
+                "left join music_release mr on mr.release_id=ota.release_id " +
+                "left join (select release_id, genre_name " +
+                "from song s " +
+                "UNION ALL " +
+                "select album_id as release_id, genre_name " +
+                "from album_genre) as release_genre " +
+                "on release_genre.release_id=ota.release_id " +
+                "where ota.release_id not in (select release_id from listened_by_user where username=?) " +
+                "order by uta.listen_count desc, ota.listen_count desc " +
+                ") " +
+                "order by listen_count desc " +
+                "limit 50  " +
+                " "
+            ); 
+
+            st.setString(1, MainClass.username);
+            st.setString(2, MainClass.username);
+            st.setString(3, MainClass.username);
+            st.setString(4, MainClass.username);
+            st.setString(5, MainClass.username);
+            st.setString(6, MainClass.username);
+
+            ResultSet rs = st.executeQuery();
+            if (rs != null) {
+                System.out.println("Top 50 songs in the last 30 days");
+                SearchManager.printResultSet(rs, 0);
+            } else {
+                System.out.println("No songs were found :(");
+            }
+
+        }catch(Exception e){
+            System.out.print(e);
+        }
+    }
+
 
 }
