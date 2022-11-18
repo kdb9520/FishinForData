@@ -1,7 +1,6 @@
 # FishinForData
-
-# CSCI 320 Group Project
-
+CSCI 320 Group Project
+This is the Java Command Line application that interacts with a postgres server containing a music database.  This database has functionality to search, listen to, and create collections of music.  It also allows for account creation, following different accounts, and music recommendations based on your account history.
 
 
 
