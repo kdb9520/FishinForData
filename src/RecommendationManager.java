@@ -242,8 +242,8 @@ public class RecommendationManager {
 
             ResultSet rs = st.executeQuery();
             if (rs != null) {
-                System.out.println("Top 50 songs in the last 30 days");
-                SearchManager.printResultSet(rs, 0);
+                System.out.println("For you, based on play history");
+                SearchManager.printResultSet(rs, 2);
             } else {
                 System.out.println("No songs were found :(");
             }
