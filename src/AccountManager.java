@@ -5,8 +5,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 public class AccountManager {
-    private static Timestamp previousSessionTimestamp;
-    private static Timestamp sessionStartTimestamp;
     private static final int MAX_LOGIN_ATTEMPTS = 5;
 
     public static String login() {
@@ -18,8 +16,7 @@ public class AccountManager {
 
         String login_username = null;
         int result = 0;
-        int attempt; //Temporary timestamp to prevent data leaking, just in case
-        Timestamp tempPreviousSessionTimestamp = null;
+        int attempt;
         try (conn) {
             for (attempt = 1; attempt <= MAX_LOGIN_ATTEMPTS; attempt++) {
                 System.out.println("Please enter your username:");
@@ -29,8 +26,7 @@ public class AccountManager {
 
                 Timestamp now = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
                 PreparedStatement st = conn.prepareStatement(
-                        "SELECT last_access_timestamp, salt " +
-                                "FROM user_account WHERE username = ?"
+                        "SELECT salt FROM user_account WHERE username = ?"
                 );
                 st.setString(1, login_username);
                 String salt = null;
@@ -41,8 +37,6 @@ public class AccountManager {
                         System.out.println("Invalid credentials (attempt " + attempt + ")");
                         continue;
                     }
-                    tempPreviousSessionTimestamp = set.getTimestamp(
-                            "last_access_timestamp");
                     salt = set.getString("salt");
                     set.close();
                 } catch (Exception e) {
@@ -70,8 +64,6 @@ public class AccountManager {
 
                 if (result == 1) {
                     System.out.println("Login success");
-                    previousSessionTimestamp = tempPreviousSessionTimestamp;
-                    sessionStartTimestamp = now;
                     conn.commit();
                     break;
                 } else { //No username+password combo matching (likely wrong password)
@@ -160,8 +152,6 @@ public class AccountManager {
 
             if (result == 1) {
                 System.out.println("Creation success");
-                previousSessionTimestamp = null;
-                sessionStartTimestamp = now;
                 conn.commit();
             } else {
                 System.out.println("Failed to create new user account");
@@ -174,7 +164,7 @@ public class AccountManager {
 
     private static int accountMenuOption() {
         System.out.print("\r\nCurrent menu: ACCOUNT/FOLLOWS\r\n\r\n" +
-                "1: Your Account Profile/Management\r\n" +
+                "1: Your Account Profile\r\n" +
                 "2: Following You (List Only)\r\n" +
                 "3: Your Follows (+ Unfollow)\r\n" +
                 "4: Account Search (View Profile / Follow)\r\n" +
@@ -191,8 +181,6 @@ public class AccountManager {
                     System.out.println("What others see:");
                     System.out.println("Your username and email, as well as...");
                     showPublicProfile(MainClass.username, null);
-                    System.out.println("What you can see and change:");
-                    showPrivateProfileMenu();
                     break;
                 }
                 case 2: { // Who's following you
@@ -289,13 +277,6 @@ public class AccountManager {
             result.close();
             System.out.println();
         } catch (Exception ignored) {}
-    }
-
-    private static void showPrivateProfileMenu() {
-        /* TODO Phase 4 only: Ideally, show everything except password, but allow user
-            to change any non-timestamp thing (including password)- if username gets
-            changed, remember to update MainClass.username for consistency */
-        System.out.println("(Private profile to be added in Phase 4)");
     }
 
     private static void followingYou() {
